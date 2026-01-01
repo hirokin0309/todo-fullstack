@@ -8,7 +8,7 @@ generator client {
 datasource db {
   // ローカル: sqlite, 本番(Railway): postgresql
   // 環境変数 DATABASE_URL の形式で自動判別
-  provider = "sqlite"  // ← デプロイ前に "postgresql" に変更
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
