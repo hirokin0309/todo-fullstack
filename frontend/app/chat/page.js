@@ -34,6 +34,21 @@ export default function ChatPage() {
     inputRef.current?.focus();
   }, [loading]);
 
+  // ダークモード設定をlocalStorageから読み込み
+  useEffect(() => {
+    const saved = localStorage.getItem('darkMode');
+    if (saved !== null) {
+      setDarkMode(saved === 'true');
+    }
+  }, []);
+
+  // ダークモード切り替え時にlocalStorageに保存
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    localStorage.setItem('darkMode', String(newMode));
+  };
+
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
@@ -170,7 +185,7 @@ export default function ChatPage() {
               </button>
             </div>
             <button
-              onClick={() => setDarkMode(!darkMode)}
+              onClick={toggleDarkMode}
               style={{ ...styles.iconButton, background: theme.buttonBg }}
               title={darkMode ? 'ライトモード' : 'ダークモード'}
             >

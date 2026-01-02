@@ -20,6 +20,21 @@ export default function Home() {
   const [error, setError] = useState(null);      // エラーメッセージ
   const [darkMode, setDarkMode] = useState(false); // ダークモード
 
+  // ダークモード設定をlocalStorageから読み込み
+  useEffect(() => {
+    const saved = localStorage.getItem('darkMode');
+    if (saved !== null) {
+      setDarkMode(saved === 'true');
+    }
+  }, []);
+
+  // ダークモード切り替え時にlocalStorageに保存
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    localStorage.setItem('darkMode', String(newMode));
+  };
+
   // ============================================
   // API呼び出し関数
   // ============================================
@@ -120,7 +135,7 @@ export default function Home() {
           <h1 style={{ ...styles.title, color: theme.text }}>Todo App</h1>
           <div style={styles.headerRight}>
             <button
-              onClick={() => setDarkMode(!darkMode)}
+              onClick={toggleDarkMode}
               style={{ ...styles.iconButton, background: theme.buttonBg }}
               title={darkMode ? 'ライトモード' : 'ダークモード'}
             >
