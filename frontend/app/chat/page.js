@@ -17,10 +17,14 @@ export default function ChatPage() {
   const [darkMode, setDarkMode] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const messageListRef = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // メッセージリスト内でのみスクロール（画面全体はスクロールしない）
+    if (messageListRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -162,7 +166,7 @@ export default function ChatPage() {
                   </div>
                 </div>
               ) : (
-                <div style={styles.messageList}>
+                <div ref={messageListRef} style={styles.messageList}>
                   {messages.map((msg, index) => (
                     <MessageBubble key={index} message={msg} theme={theme} />
                   ))}
