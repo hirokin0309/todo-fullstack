@@ -101,7 +101,12 @@ export default function Home() {
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Todo App</h1>
+      <div style={styles.header}>
+        <h1 style={styles.title}>Todo App</h1>
+        <a href="/chat" style={styles.chatLink}>
+          AI Chat
+        </a>
+      </div>
 
       {/* エラー表示 */}
       {error && <div style={styles.error}>{error}</div>}
@@ -169,10 +174,25 @@ const styles = {
     borderRadius: '8px',
     boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
   },
-  title: {
-    textAlign: 'center',
-    color: '#333',
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: '30px',
+  },
+  title: {
+    color: '#333',
+    margin: 0,
+  },
+  chatLink: {
+    padding: '10px 20px',
+    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+    color: 'white',
+    textDecoration: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: '600',
+    transition: 'transform 0.2s ease',
   },
   error: {
     backgroundColor: '#fee',
