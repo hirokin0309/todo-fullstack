@@ -11,7 +11,6 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const Anthropic = require('@anthropic-ai/sdk').default;
-const { v4: uuidv4 } = require('uuid');
 const { MENTOR_SYSTEM_MESSAGE, NORMAL_SYSTEM_MESSAGE } = require('./prompts/mentorPrompt');
 
 // Expressアプリケーションを作成
@@ -25,8 +24,6 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 });
 
-// セッション管理（メモリ内、サーバー再起動でリセット）
-const sessions = new Map();
 const MAX_MESSAGES = 20; // セッションあたりの最大メッセージ数
 
 // Todo提案を検出するヘルパー関数
@@ -151,30 +148,40 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // セッションの取得または作成
-    let currentSessionId = sessionId;
-    if (!currentSessionId || !sessions.has(currentSessionId)) {
-      currentSessionId = uuidv4();
-      sessions.set(currentSessionId, { history: [], mode });
+    // セッションの取得または作成（DB）
+    let session;
+    if (sessionId) {
+      session = await prisma.chatSession.findUnique({
+        where: { id: sessionId },
+        include: { messages: { orderBy: { createdAt: 'asc' } } }
+      });
     }
 
-    // セッションデータを取得
-    const sessionData = sessions.get(currentSessionId);
-    const history = sessionData.history;
-
-    // モードが変わった場合はセッションをリセット
-    if (sessionData.mode !== mode) {
-      sessionData.history = [];
-      sessionData.mode = mode;
+    // セッションがない or モードが変わった場合は新規作成
+    if (!session || session.mode !== mode) {
+      session = await prisma.chatSession.create({
+        data: { mode },
+        include: { messages: true }
+      });
     }
 
-    // ユーザーメッセージを追加
-    history.push({ role: 'user', content: message.trim() });
+    // ユーザーメッセージをDBに保存
+    await prisma.chatMessage.create({
+      data: {
+        sessionId: session.id,
+        role: 'user',
+        content: message.trim()
+      }
+    });
 
-    // 履歴が長すぎる場合は古いメッセージを削除
-    while (history.length > MAX_MESSAGES) {
-      history.shift();
-    }
+    // 履歴を取得（最新MAX_MESSAGES件）
+    const dbMessages = await prisma.chatMessage.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+      take: MAX_MESSAGES
+    });
+
+    const history = dbMessages.map(m => ({ role: m.role, content: m.content }));
 
     // モードに応じたシステムメッセージを選択
     const systemMessage = mode === 'mentor' ? MENTOR_SYSTEM_MESSAGE : NORMAL_SYSTEM_MESSAGE;
@@ -200,22 +207,22 @@ app.post('/api/chat', async (req, res) => {
       }
     }
 
-    // 応答を履歴に追加
-    history.push({ role: 'assistant', content: assistantMessage });
-
-    // セッションを更新
-    sessions.set(currentSessionId, sessionData);
+    // AIの応答をDBに保存
+    await prisma.chatMessage.create({
+      data: {
+        sessionId: session.id,
+        role: 'assistant',
+        content: assistantMessage
+      }
+    });
 
     res.json({
-      sessionId: currentSessionId,
+      sessionId: session.id,
       message: assistantMessage,
       todoSuggestion
     });
   } catch (error) {
     console.error('Error in chat:', error);
-    console.error('Error details:', JSON.stringify(error, null, 2));
-    console.error('Error message:', error.message);
-    console.error('Error status:', error.status);
     res.status(500).json({
       error: 'Failed to process chat message',
       details: error.message || 'Unknown error'
@@ -224,19 +231,36 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // GET /api/chat/:sessionId - セッション履歴取得
-app.get('/api/chat/:sessionId', (req, res) => {
-  const { sessionId } = req.params;
-  const sessionData = sessions.get(sessionId);
-  const history = sessionData?.history || [];
-  const mode = sessionData?.mode || 'normal';
-  res.json({ sessionId, messages: history, mode });
+app.get('/api/chat/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const session = await prisma.chatSession.findUnique({
+      where: { id: sessionId },
+      include: { messages: { orderBy: { createdAt: 'asc' } } }
+    });
+
+    if (!session) {
+      return res.json({ sessionId, messages: [], mode: 'normal' });
+    }
+
+    const messages = session.messages.map(m => ({ role: m.role, content: m.content }));
+    res.json({ sessionId, messages, mode: session.mode });
+  } catch (error) {
+    console.error('Error fetching chat:', error);
+    res.status(500).json({ error: 'Failed to fetch chat history' });
+  }
 });
 
 // DELETE /api/chat/:sessionId - セッション削除
-app.delete('/api/chat/:sessionId', (req, res) => {
-  const { sessionId } = req.params;
-  sessions.delete(sessionId);
-  res.status(204).send();
+app.delete('/api/chat/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    await prisma.chatSession.delete({ where: { id: sessionId } });
+    res.status(204).send();
+  } catch (error) {
+    // セッションが存在しなくても204を返す
+    res.status(204).send();
+  }
 });
 
 // ============================================

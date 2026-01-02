@@ -16,8 +16,8 @@ export default function RootLayout({ children }) {
       <body style={{
         fontFamily: 'system-ui, sans-serif',
         margin: 0,
-        padding: '20px',
-        backgroundColor: '#f5f5f5'
+        padding: 0,
+        backgroundColor: 'transparent'
       }}>
         {children}
       </body>

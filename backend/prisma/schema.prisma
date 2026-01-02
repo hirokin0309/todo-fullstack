@@ -31,3 +31,22 @@ model Contact {
   message   String?                                 // メッセージ（任意）
   createdAt DateTime @default(now())
 }
+
+// チャットセッションテーブル
+model ChatSession {
+  id        String   @id @default(uuid())           // セッションID（UUID）
+  mode      String   @default("normal")             // モード（normal/mentor）
+  messages  ChatMessage[]                           // メッセージ一覧（1対多）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// チャットメッセージテーブル
+model ChatMessage {
+  id        Int         @id @default(autoincrement())
+  sessionId String                                  // セッションID
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String                                  // user / assistant
+  content   String                                  // メッセージ内容
+  createdAt DateTime    @default(now())
+}
