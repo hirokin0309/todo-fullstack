@@ -44,16 +44,19 @@ export default function ChatPage() {
         body: JSON.stringify({ sessionId, message: userMessage }),
       });
 
-      if (!res.ok) throw new Error('Failed to send message');
-
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.details || data.error || 'Failed to send message');
+      }
+
       if (!sessionId) setSessionId(data.sessionId);
       setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
     } catch (err) {
-      console.error(err);
+      console.error('Chat error:', err);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'エラーが発生しました。もう一度お試しください。'
+        content: `エラーが発生しました: ${err.message}`
       }]);
     } finally {
       setLoading(false);

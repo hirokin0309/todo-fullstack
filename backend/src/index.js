@@ -179,7 +179,13 @@ app.post('/api/chat', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in chat:', error);
-    res.status(500).json({ error: 'Failed to process chat message' });
+    console.error('Error details:', JSON.stringify(error, null, 2));
+    console.error('Error message:', error.message);
+    console.error('Error status:', error.status);
+    res.status(500).json({
+      error: 'Failed to process chat message',
+      details: error.message || 'Unknown error'
+    });
   }
 });
 
