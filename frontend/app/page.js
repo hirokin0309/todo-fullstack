@@ -16,6 +16,7 @@ export default function Home() {
   // State（状態管理）
   const [todos, setTodos] = useState([]);        // Todo一覧
   const [newTitle, setNewTitle] = useState('');  // 新規Todo入力欄
+  const [newDueDate, setNewDueDate] = useState(''); // 新規Todo期日
   const [loading, setLoading] = useState(true);  // 読み込み中フラグ
   const [error, setError] = useState(null);      // エラーメッセージ
   const [darkMode, setDarkMode] = useState(false); // ダークモード
@@ -64,11 +65,15 @@ export default function Home() {
       const res = await fetch(`${API_URL}/api/todos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle }),
+        body: JSON.stringify({
+          title: newTitle,
+          dueDate: newDueDate || null
+        }),
       });
       if (!res.ok) throw new Error('Failed to create');
 
       setNewTitle(''); // 入力欄をクリア
+      setNewDueDate(''); // 期日もクリア
       fetchTodos();    // 一覧を再取得
     } catch (err) {
       setError('Todoの作成に失敗しました');
@@ -160,6 +165,12 @@ export default function Home() {
             placeholder="新しいTodoを入力... (⌘+Enterで追加)"
             style={{ ...styles.input, background: theme.inputBg, color: theme.text, borderColor: theme.border }}
           />
+          <input
+            type="date"
+            value={newDueDate}
+            onChange={(e) => setNewDueDate(e.target.value)}
+            style={{ ...styles.dateInput, background: theme.inputBg, color: theme.text, borderColor: theme.border }}
+          />
           <button type="submit" style={styles.addButton}>
             追加
           </button>
@@ -178,13 +189,25 @@ export default function Home() {
                   onChange={() => toggleTodo(todo)}
                   style={styles.checkbox}
                 />
-                <span style={{
-                  ...styles.text,
-                  textDecoration: todo.completed ? 'line-through' : 'none',
-                  color: todo.completed ? theme.textSecondary : theme.text,
-                }}>
-                  {todo.title}
-                </span>
+                <div style={styles.todoContent}>
+                  <span style={{
+                    ...styles.text,
+                    textDecoration: todo.completed ? 'line-through' : 'none',
+                    color: todo.completed ? theme.textSecondary : theme.text,
+                  }}>
+                    {todo.title}
+                  </span>
+                  {todo.dueDate && (
+                    <span style={{
+                      ...styles.dueDate,
+                      color: new Date(todo.dueDate) < new Date() && !todo.completed
+                        ? '#ef4444'
+                        : theme.textSecondary
+                    }}>
+                      期日: {new Date(todo.dueDate).toLocaleDateString('ja-JP')}
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={() => deleteTodo(todo.id)}
                   style={styles.deleteButton}
@@ -303,6 +326,15 @@ const styles = {
     outline: 'none',
     transition: 'all 0.2s ease',
   },
+  dateInput: {
+    padding: '14px 12px',
+    fontSize: '14px',
+    border: '1px solid',
+    borderRadius: '10px',
+    outline: 'none',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+  },
   addButton: {
     padding: '14px 24px',
     fontSize: '16px',
@@ -332,10 +364,19 @@ const styles = {
     cursor: 'pointer',
     accentColor: '#6366f1',
   },
-  text: {
+  todoContent: {
     flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  text: {
     fontSize: '16px',
     transition: 'color 0.2s ease',
+  },
+  dueDate: {
+    fontSize: '12px',
+    fontWeight: '500',
   },
   deleteButton: {
     padding: '8px 14px',

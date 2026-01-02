@@ -79,7 +79,7 @@ app.get('/api/todos', async (req, res) => {
 // POST /api/todos - Todo作成
 app.post('/api/todos', async (req, res) => {
   try {
-    const { title } = req.body;
+    const { title, dueDate } = req.body;
 
     // バリデーション
     if (!title || title.trim() === '') {
@@ -88,7 +88,10 @@ app.post('/api/todos', async (req, res) => {
 
     // 新規Todo作成
     const todo = await prisma.todo.create({
-      data: { title: title.trim() }
+      data: {
+        title: title.trim(),
+        dueDate: dueDate ? new Date(dueDate) : null
+      }
     });
     res.status(201).json(todo);
   } catch (error) {
@@ -101,12 +104,13 @@ app.post('/api/todos', async (req, res) => {
 app.put('/api/todos/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, completed } = req.body;
+    const { title, completed, dueDate } = req.body;
 
     // 更新データを構築
     const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (completed !== undefined) updateData.completed = completed;
+    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
 
     // 更新実行
     const todo = await prisma.todo.update({
