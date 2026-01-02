@@ -264,5 +264,12 @@ app.get('/api/contacts', async (req, res) => {
 // サーバー起動
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  console.log(`ANTHROPIC_API_KEY is ${process.env.ANTHROPIC_API_KEY ? 'SET (length: ' + process.env.ANTHROPIC_API_KEY.length + ')' : 'NOT SET'}`);
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (key) {
+    console.log(`ANTHROPIC_API_KEY is SET (length: ${key.length})`);
+    console.log(`Key prefix: ${key.substring(0, 20)}...`);
+    console.log(`Key suffix: ...${key.substring(key.length - 10)}`);
+  } else {
+    console.log('ANTHROPIC_API_KEY is NOT SET');
+  }
 });
