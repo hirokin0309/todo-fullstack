@@ -15,6 +15,9 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [mode, setMode] = useState('normal'); // 'normal' or 'mentor'
+  const [todoSuggestion, setTodoSuggestion] = useState(null);
+  const [todoAdded, setTodoAdded] = useState(false);
 
   const messagesEndRef = useRef(null);
   const messageListRef = useRef(null);
@@ -45,7 +48,7 @@ export default function ChatPage() {
       const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, message: userMessage }),
+        body: JSON.stringify({ sessionId, message: userMessage, mode }),
       });
 
       const data = await res.json();
@@ -56,6 +59,12 @@ export default function ChatPage() {
 
       if (!sessionId) setSessionId(data.sessionId);
       setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+
+      // メンターモードでTodo提案があれば設定
+      if (data.todoSuggestion) {
+        setTodoSuggestion(data.todoSuggestion);
+        setTodoAdded(false);
+      }
     } catch (err) {
       console.error('Chat error:', err);
       setMessages(prev => [...prev, {
@@ -73,6 +82,42 @@ export default function ChatPage() {
     }
     setMessages([]);
     setSessionId(null);
+    setTodoSuggestion(null);
+    setTodoAdded(false);
+  };
+
+  // モード切り替え時の処理
+  const handleModeChange = (newMode) => {
+    if (newMode !== mode) {
+      setMode(newMode);
+      setMessages([]);
+      setSessionId(null);
+      setTodoSuggestion(null);
+      setTodoAdded(false);
+    }
+  };
+
+  // Todo追加処理
+  const addTodo = async () => {
+    if (!todoSuggestion) return;
+
+    try {
+      const title = `${todoSuggestion.name}さん: ${todoSuggestion.title}`;
+      const res = await fetch(`${API_URL}/api/todos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Todo追加に失敗しました');
+      }
+
+      setTodoAdded(true);
+    } catch (err) {
+      console.error('Add todo error:', err);
+      alert('Todoの追加に失敗しました');
+    }
   };
 
   const theme = darkMode ? darkTheme : lightTheme;
@@ -101,6 +146,29 @@ export default function ChatPage() {
           </div>
 
           <div style={styles.headerRight}>
+            {/* モード切り替えトグル */}
+            <div style={{ ...styles.modeToggle, background: theme.buttonBg }}>
+              <button
+                onClick={() => handleModeChange('normal')}
+                style={{
+                  ...styles.modeButton,
+                  background: mode === 'normal' ? theme.accentGradient : 'transparent',
+                  color: mode === 'normal' ? 'white' : theme.textSecondary,
+                }}
+              >
+                通常
+              </button>
+              <button
+                onClick={() => handleModeChange('mentor')}
+                style={{
+                  ...styles.modeButton,
+                  background: mode === 'mentor' ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' : 'transparent',
+                  color: mode === 'mentor' ? 'white' : theme.textSecondary,
+                }}
+              >
+                メンター
+              </button>
+            </div>
             <button
               onClick={() => setDarkMode(!darkMode)}
               style={{ ...styles.iconButton, background: theme.buttonBg }}
@@ -140,21 +208,34 @@ export default function ChatPage() {
             <div style={{ ...styles.messageArea, background: theme.messageBg }}>
               {messages.length === 0 ? (
                 <div style={styles.emptyState}>
-                  <div style={{ ...styles.emptyIcon, background: theme.accentGradient }}>
-                    <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                      <path d="M24 4L44 14V34L24 44L4 34V14L24 4Z" stroke="white" strokeWidth="2" fill="none"/>
-                      <circle cx="24" cy="24" r="8" fill="white"/>
-                    </svg>
+                  <div style={{ ...styles.emptyIcon, background: mode === 'mentor' ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' : theme.accentGradient }}>
+                    {mode === 'mentor' ? (
+                      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                        <path d="M24 4L4 14V24C4 35 14 44 24 44C34 44 44 35 44 24V14L24 4Z" stroke="white" strokeWidth="2" fill="none"/>
+                        <path d="M16 24L22 30L34 18" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+                      </svg>
+                    ) : (
+                      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                        <path d="M24 4L44 14V34L24 44L4 34V14L24 4Z" stroke="white" strokeWidth="2" fill="none"/>
+                        <circle cx="24" cy="24" r="8" fill="white"/>
+                      </svg>
+                    )}
                   </div>
                   <h2 style={{ ...styles.emptyTitle, color: theme.text }}>
-                    AIアシスタントへようこそ
+                    {mode === 'mentor' ? 'Todoメンターモード' : 'AIアシスタントへようこそ'}
                   </h2>
                   <p style={{ ...styles.emptyText, color: theme.textSecondary }}>
-                    何でも質問してください。<br/>
-                    日本語で丁寧にお答えします。
+                    {mode === 'mentor' ? (
+                      <>今日やるべきことを一緒に考えましょう。<br/>まずは「こんにちは」と話しかけてください。</>
+                    ) : (
+                      <>何でも質問してください。<br/>日本語で丁寧にお答えします。</>
+                    )}
                   </p>
                   <div style={styles.suggestions}>
-                    {['今日の天気は？', 'プログラミングを教えて', 'ビジネスの相談'].map((text, i) => (
+                    {(mode === 'mentor'
+                      ? ['こんにちは', '今日やることを決めたい', '何から始めればいい？']
+                      : ['今日の天気は？', 'プログラミングを教えて', 'ビジネスの相談']
+                    ).map((text, i) => (
                       <button
                         key={i}
                         onClick={() => setInput(text)}
@@ -180,6 +261,33 @@ export default function ChatPage() {
                           <span style={{ ...styles.dot, animationDelay: '300ms' }} />
                         </div>
                       </div>
+                    </div>
+                  )}
+                  {/* Todo提案カード */}
+                  {todoSuggestion && (
+                    <div style={styles.todoCard}>
+                      <div style={styles.todoCardHeader}>
+                        <span style={styles.todoCardIcon}>✨</span>
+                        <span style={{ fontWeight: '600' }}>Todo提案</span>
+                      </div>
+                      <div style={{ ...styles.todoCardContent, color: theme.text }}>
+                        「{todoSuggestion.name}さん: {todoSuggestion.title}」
+                      </div>
+                      {todoAdded ? (
+                        <div style={styles.todoAddedMessage}>
+                          <span>✅</span> Todoリストに追加しました！
+                          <a href="/" style={{ ...styles.todoLink, color: theme.accent }}>
+                            Todo画面へ →
+                          </a>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={addTodo}
+                          style={styles.todoAddButton}
+                        >
+                          Todoに追加する
+                        </button>
+                      )}
                     </div>
                   )}
                   <div ref={messagesEndRef} />
@@ -812,5 +920,75 @@ const styles = {
     fontSize: '16px',
     lineHeight: '1.6',
     marginBottom: '32px',
+  },
+  // モード切り替えスタイル
+  modeToggle: {
+    display: 'flex',
+    borderRadius: '10px',
+    padding: '4px',
+    gap: '4px',
+  },
+  modeButton: {
+    padding: '8px 14px',
+    borderRadius: '8px',
+    border: 'none',
+    fontSize: '13px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  // Todo提案カードスタイル
+  todoCard: {
+    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(52, 211, 153, 0.1) 100%)',
+    border: '2px solid rgba(16, 185, 129, 0.3)',
+    borderRadius: '16px',
+    padding: '20px',
+    marginTop: '16px',
+    animation: 'fadeIn 0.3s ease-out',
+  },
+  todoCardHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '12px',
+    color: '#10b981',
+  },
+  todoCardIcon: {
+    fontSize: '20px',
+  },
+  todoCardContent: {
+    fontSize: '18px',
+    fontWeight: '600',
+    marginBottom: '16px',
+    lineHeight: '1.4',
+  },
+  todoAddButton: {
+    width: '100%',
+    padding: '14px 20px',
+    background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '12px',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  todoAddedMessage: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    padding: '14px',
+    background: 'rgba(16, 185, 129, 0.15)',
+    borderRadius: '12px',
+    color: '#10b981',
+    fontWeight: '600',
+    fontSize: '15px',
+  },
+  todoLink: {
+    marginLeft: '8px',
+    textDecoration: 'none',
+    fontWeight: '500',
   },
 };

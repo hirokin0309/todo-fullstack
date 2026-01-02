@@ -12,6 +12,7 @@ const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const Anthropic = require('@anthropic-ai/sdk').default;
 const { v4: uuidv4 } = require('uuid');
+const { MENTOR_SYSTEM_MESSAGE, NORMAL_SYSTEM_MESSAGE } = require('./prompts/mentorPrompt');
 
 // Expressアプリケーションを作成
 const app = express();
@@ -28,11 +29,23 @@ const anthropic = new Anthropic({
 const sessions = new Map();
 const MAX_MESSAGES = 20; // セッションあたりの最大メッセージ数
 
-// システムメッセージ（AIの性格・役割を定義）
-const SYSTEM_MESSAGE = `あなたは親切で丁寧なAIアシスタントです。
-ユーザーの質問に対して、わかりやすく簡潔に回答してください。
-日本語で対応し、必要に応じて具体例を交えて説明してください。
-専門的な内容も、初心者にも理解しやすいように噛み砕いて説明することを心がけてください。`;
+// Todo提案を検出するヘルパー関数
+function extractTodoSuggestion(text) {
+  const regex = /<<<TODO_SUGGESTION>>>\s*(\{[\s\S]*?\})\s*<<<END_TODO>>>/;
+  const match = text.match(regex);
+  if (match) {
+    try {
+      const suggestion = JSON.parse(match[1]);
+      // JSONマーカーを除去したメッセージを返す
+      const cleanMessage = text.replace(regex, '').trim();
+      return { suggestion, cleanMessage };
+    } catch (e) {
+      console.error('Failed to parse todo suggestion:', e);
+      return null;
+    }
+  }
+  return null;
+}
 
 // ミドルウェアの設定
 // cors: フロントエンド（別ドメイン）からのアクセスを許可
@@ -132,7 +145,7 @@ app.delete('/api/todos/:id', async (req, res) => {
 // POST /api/chat - メッセージ送信
 app.post('/api/chat', async (req, res) => {
   try {
-    const { sessionId, message } = req.body;
+    const { sessionId, message, mode = 'normal' } = req.body;
 
     if (!message || message.trim() === '') {
       return res.status(400).json({ error: 'Message is required' });
@@ -142,11 +155,18 @@ app.post('/api/chat', async (req, res) => {
     let currentSessionId = sessionId;
     if (!currentSessionId || !sessions.has(currentSessionId)) {
       currentSessionId = uuidv4();
-      sessions.set(currentSessionId, []);
+      sessions.set(currentSessionId, { history: [], mode });
     }
 
-    // 会話履歴を取得
-    const history = sessions.get(currentSessionId);
+    // セッションデータを取得
+    const sessionData = sessions.get(currentSessionId);
+    const history = sessionData.history;
+
+    // モードが変わった場合はセッションをリセット
+    if (sessionData.mode !== mode) {
+      sessionData.history = [];
+      sessionData.mode = mode;
+    }
 
     // ユーザーメッセージを追加
     history.push({ role: 'user', content: message.trim() });
@@ -156,26 +176,40 @@ app.post('/api/chat', async (req, res) => {
       history.shift();
     }
 
+    // モードに応じたシステムメッセージを選択
+    const systemMessage = mode === 'mentor' ? MENTOR_SYSTEM_MESSAGE : NORMAL_SYSTEM_MESSAGE;
+
     // Claude APIを呼び出し
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
-      system: SYSTEM_MESSAGE,
+      system: systemMessage,
       messages: history
     });
 
     // AIの応答を取得
-    const assistantMessage = response.content[0].text;
+    let assistantMessage = response.content[0].text;
+    let todoSuggestion = null;
+
+    // メンターモードの場合、Todo提案を検出
+    if (mode === 'mentor') {
+      const extracted = extractTodoSuggestion(assistantMessage);
+      if (extracted) {
+        todoSuggestion = extracted.suggestion;
+        assistantMessage = extracted.cleanMessage;
+      }
+    }
 
     // 応答を履歴に追加
     history.push({ role: 'assistant', content: assistantMessage });
 
     // セッションを更新
-    sessions.set(currentSessionId, history);
+    sessions.set(currentSessionId, sessionData);
 
     res.json({
       sessionId: currentSessionId,
-      message: assistantMessage
+      message: assistantMessage,
+      todoSuggestion
     });
   } catch (error) {
     console.error('Error in chat:', error);
@@ -192,8 +226,10 @@ app.post('/api/chat', async (req, res) => {
 // GET /api/chat/:sessionId - セッション履歴取得
 app.get('/api/chat/:sessionId', (req, res) => {
   const { sessionId } = req.params;
-  const history = sessions.get(sessionId) || [];
-  res.json({ sessionId, messages: history });
+  const sessionData = sessions.get(sessionId);
+  const history = sessionData?.history || [];
+  const mode = sessionData?.mode || 'normal';
+  res.json({ sessionId, messages: history, mode });
 });
 
 // DELETE /api/chat/:sessionId - セッション削除
