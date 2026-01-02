@@ -18,6 +18,7 @@ export default function Home() {
   const [newTitle, setNewTitle] = useState('');  // 新規Todo入力欄
   const [loading, setLoading] = useState(true);  // 読み込み中フラグ
   const [error, setError] = useState(null);      // エラーメッセージ
+  const [darkMode, setDarkMode] = useState(false); // ダークモード
 
   // ============================================
   // API呼び出し関数
@@ -60,6 +61,16 @@ export default function Home() {
     }
   };
 
+  // Command+Enter / Ctrl+Enter でフォーム送信
+  const handleKeyDown = (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (newTitle.trim()) {
+        createTodo(e);
+      }
+    }
+  };
+
   // Todo完了状態を切り替え
   const toggleTodo = async (todo) => {
     try {
@@ -95,84 +106,129 @@ export default function Home() {
     fetchTodos();
   }, []);
 
+  // テーマに応じたスタイル
+  const theme = darkMode ? darkTheme : lightTheme;
+
   // ============================================
   // UI レンダリング
   // ============================================
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Todo App</h1>
-        <a href="/chat" style={styles.chatLink}>
-          AI Chat
-        </a>
+    <div style={{ ...styles.wrapper, background: theme.background }}>
+      <div style={{ ...styles.container, background: theme.containerBg, boxShadow: theme.shadow }}>
+        <div style={styles.header}>
+          <h1 style={{ ...styles.title, color: theme.text }}>Todo App</h1>
+          <div style={styles.headerRight}>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              style={{ ...styles.iconButton, background: theme.buttonBg }}
+              title={darkMode ? 'ライトモード' : 'ダークモード'}
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+            <a href="/chat" style={styles.chatLink}>
+              AI Chat
+            </a>
+          </div>
+        </div>
+
+        {/* エラー表示 */}
+        {error && <div style={{ ...styles.error, background: theme.errorBg }}>{error}</div>}
+
+        {/* 新規Todo入力フォーム */}
+        <form onSubmit={createTodo} style={styles.form}>
+          <input
+            type="text"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="新しいTodoを入力... (⌘+Enterで追加)"
+            style={{ ...styles.input, background: theme.inputBg, color: theme.text, borderColor: theme.border }}
+          />
+          <button type="submit" style={styles.addButton}>
+            追加
+          </button>
+        </form>
+
+        {/* Todo一覧 */}
+        {loading ? (
+          <p style={{ color: theme.textSecondary }}>読み込み中...</p>
+        ) : (
+          <ul style={styles.list}>
+            {todos.map((todo) => (
+              <li key={todo.id} style={{ ...styles.item, borderColor: theme.border }}>
+                <input
+                  type="checkbox"
+                  checked={todo.completed}
+                  onChange={() => toggleTodo(todo)}
+                  style={styles.checkbox}
+                />
+                <span style={{
+                  ...styles.text,
+                  textDecoration: todo.completed ? 'line-through' : 'none',
+                  color: todo.completed ? theme.textSecondary : theme.text,
+                }}>
+                  {todo.title}
+                </span>
+                <button
+                  onClick={() => deleteTodo(todo.id)}
+                  style={styles.deleteButton}
+                >
+                  削除
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Todo数の表示 */}
+        <p style={{ ...styles.count, color: theme.textSecondary }}>
+          合計: {todos.length}件 / 完了: {todos.filter(t => t.completed).length}件
+        </p>
       </div>
-
-      {/* エラー表示 */}
-      {error && <div style={styles.error}>{error}</div>}
-
-      {/* 新規Todo入力フォーム */}
-      <form onSubmit={createTodo} style={styles.form}>
-        <input
-          type="text"
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          placeholder="新しいTodoを入力..."
-          style={styles.input}
-        />
-        <button type="submit" style={styles.addButton}>
-          追加
-        </button>
-      </form>
-
-      {/* Todo一覧 */}
-      {loading ? (
-        <p>読み込み中...</p>
-      ) : (
-        <ul style={styles.list}>
-          {todos.map((todo) => (
-            <li key={todo.id} style={styles.item}>
-              <input
-                type="checkbox"
-                checked={todo.completed}
-                onChange={() => toggleTodo(todo)}
-                style={styles.checkbox}
-              />
-              <span style={{
-                ...styles.text,
-                textDecoration: todo.completed ? 'line-through' : 'none',
-                color: todo.completed ? '#888' : '#333',
-              }}>
-                {todo.title}
-              </span>
-              <button
-                onClick={() => deleteTodo(todo.id)}
-                style={styles.deleteButton}
-              >
-                削除
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* Todo数の表示 */}
-      <p style={styles.count}>
-        合計: {todos.length}件 / 完了: {todos.filter(t => t.completed).length}件
-      </p>
     </div>
   );
 }
 
+// ライトテーマ
+const lightTheme = {
+  background: 'linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 100%)',
+  containerBg: '#ffffff',
+  text: '#333333',
+  textSecondary: '#888888',
+  inputBg: '#ffffff',
+  border: '#dddddd',
+  buttonBg: 'rgba(0, 0, 0, 0.05)',
+  errorBg: '#fee',
+  shadow: '0 2px 10px rgba(0,0,0,0.1)',
+};
+
+// ダークテーマ
+const darkTheme = {
+  background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+  containerBg: '#1e1e3f',
+  text: '#f1f5f9',
+  textSecondary: '#94a3b8',
+  inputBg: 'rgba(255, 255, 255, 0.1)',
+  border: 'rgba(255, 255, 255, 0.2)',
+  buttonBg: 'rgba(255, 255, 255, 0.1)',
+  errorBg: 'rgba(239, 68, 68, 0.2)',
+  shadow: '0 4px 20px rgba(0,0,0,0.3)',
+};
+
 // スタイル定義
 const styles = {
+  wrapper: {
+    minHeight: '100vh',
+    padding: '40px 20px',
+    transition: 'background 0.3s ease',
+  },
   container: {
     maxWidth: '600px',
     margin: '0 auto',
-    backgroundColor: '#fff',
     padding: '30px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+    borderRadius: '16px',
+    transition: 'all 0.3s ease',
   },
   header: {
     display: 'flex',
@@ -180,25 +236,42 @@ const styles = {
     alignItems: 'center',
     marginBottom: '30px',
   },
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
   title: {
-    color: '#333',
     margin: 0,
+    fontSize: '28px',
+    fontWeight: '700',
+  },
+  iconButton: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '10px',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '18px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.2s ease',
   },
   chatLink: {
     padding: '10px 20px',
     background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
     color: 'white',
     textDecoration: 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     fontSize: '14px',
     fontWeight: '600',
     transition: 'transform 0.2s ease',
   },
   error: {
-    backgroundColor: '#fee',
     color: '#c00',
-    padding: '10px',
-    borderRadius: '4px',
+    padding: '12px',
+    borderRadius: '8px',
     marginBottom: '20px',
   },
   form: {
@@ -208,52 +281,61 @@ const styles = {
   },
   input: {
     flex: 1,
-    padding: '12px',
+    padding: '14px 16px',
     fontSize: '16px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
+    border: '1px solid',
+    borderRadius: '10px',
+    outline: 'none',
+    transition: 'all 0.2s ease',
   },
   addButton: {
-    padding: '12px 24px',
+    padding: '14px 24px',
     fontSize: '16px',
-    backgroundColor: '#4CAF50',
+    background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
     color: 'white',
     border: 'none',
-    borderRadius: '4px',
+    borderRadius: '10px',
     cursor: 'pointer',
+    fontWeight: '600',
+    transition: 'transform 0.2s ease',
   },
   list: {
     listStyle: 'none',
     padding: 0,
+    margin: 0,
   },
   item: {
     display: 'flex',
     alignItems: 'center',
-    padding: '12px',
-    borderBottom: '1px solid #eee',
-    gap: '10px',
+    padding: '14px 0',
+    borderBottom: '1px solid',
+    gap: '12px',
   },
   checkbox: {
     width: '20px',
     height: '20px',
     cursor: 'pointer',
+    accentColor: '#6366f1',
   },
   text: {
     flex: 1,
     fontSize: '16px',
+    transition: 'color 0.2s ease',
   },
   deleteButton: {
-    padding: '6px 12px',
-    fontSize: '14px',
-    backgroundColor: '#f44336',
+    padding: '8px 14px',
+    fontSize: '13px',
+    backgroundColor: '#ef4444',
     color: 'white',
     border: 'none',
-    borderRadius: '4px',
+    borderRadius: '8px',
     cursor: 'pointer',
+    fontWeight: '500',
+    transition: 'transform 0.2s ease',
   },
   count: {
     textAlign: 'center',
-    color: '#666',
-    marginTop: '20px',
+    marginTop: '24px',
+    fontSize: '14px',
   },
 };
